@@ -5,6 +5,8 @@
 
 #include "ListSerializer.hpp"
 
+#define MAX_DATA_LENGTH 1000
+
 namespace
 {
     struct NodeHeader
@@ -168,6 +170,36 @@ namespace
         }
     }
 
+    nodes_data_t read_from_binary_file(std::ifstream &file, uint32_t node_count)
+    {
+        nodes_data_t nodes_data;
+        nodes_data.reserve(node_count);
+
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            NodeHeader header;
+            file.read(reinterpret_cast<char *>(&header), sizeof(header));
+
+            if (file.eof())
+            {
+                throw std::runtime_error("Unexpected end of file");
+            }
+
+            if (header.data_length > MAX_DATA_LENGTH)
+            {
+                throw std::runtime_error("Data length exceeds maximum allowed");
+            }
+
+            std::string data;
+            data.resize(header.data_length);
+            file.read(&data[0], header.data_length);
+
+            nodes_data.emplace_back(std::move(data), header.rand_index);
+        }
+
+        return nodes_data;
+    }
+
 } // namespace
 
 ListNode *ListSerializer::deserializeFromText(const std::string &filename)
@@ -197,5 +229,22 @@ void ListSerializer::serializeToBinary(ListNode *head, const std::string &filena
 
 ListNode *ListSerializer::deserializeFromBinary(const std::string &filename)
 {
-    return nullptr;
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open())
+    {
+        throw std::runtime_error("Cannot open binary file: " + filename);
+    }
+
+    uint32_t node_count;
+    file.read(reinterpret_cast<char *>(&node_count), sizeof(node_count));
+
+    if (node_count == 0 || file.eof())
+    {
+        return nullptr;
+    }
+
+    auto nodes_data = read_from_binary_file(file, node_count);
+    auto *head = create_nodes(nodes_data);
+
+    return head;
 }
