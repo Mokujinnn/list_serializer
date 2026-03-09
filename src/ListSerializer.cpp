@@ -39,7 +39,7 @@ namespace
         }
     }
 
-    nodes_data_t read_data_from_file(const std::string &filename)
+    nodes_data_t read_data_from_text_file(const std::string &filename)
     {
         std::ifstream file(filename);
         if (!file.is_open())
@@ -63,16 +63,13 @@ namespace
         return nodes;
     }
 
-    ListNode *create_nodes(const nodes_data_t &nodes_data)
+    ListNode *create_node(const std::string &data)
     {
-        std::vector<ListNode *> nodes;
-        nodes.reserve(nodes_data.size());
+        return new ListNode(data);
+    }
 
-        for (const auto &item : nodes_data)
-        {
-            nodes.push_back(new ListNode(item.first));
-        }
-
+    void set_prev_and_next_pointers(const std::vector<ListNode *> &nodes)
+    {
         for (size_t i = 0; i < nodes.size(); ++i)
         {
             if (i > 0)
@@ -84,7 +81,18 @@ namespace
                 nodes[i]->next = nodes[i + 1];
             }
         }
+    }
 
+    void delete_nodes(const std::vector<ListNode *> &nodes)
+    {
+        for (auto node : nodes)
+        {
+            delete node;
+        }
+    }
+
+    void set_rand_pointers(const std::vector<ListNode *> &nodes, const nodes_data_t &nodes_data)
+    {
         for (size_t i = 0; i < nodes.size(); ++i)
         {
             int rand_index = nodes_data[i].second;
@@ -94,13 +102,25 @@ namespace
             }
             else if (rand_index != -1)
             {
-                for (auto node : nodes)
-                {
-                    delete node;
-                }
+                delete_nodes(nodes);
                 throw std::runtime_error("Invalid rand index: " + std::to_string(rand_index));
             }
         }
+    }
+
+    ListNode *create_nodes(const nodes_data_t &nodes_data)
+    {
+        std::vector<ListNode *> nodes;
+        nodes.reserve(nodes_data.size());
+
+        for (const auto &item : nodes_data)
+        {
+            nodes.push_back(create_node(item.first));
+        }
+
+        set_prev_and_next_pointers(nodes);
+
+        set_rand_pointers(nodes, nodes_data);
 
         return nodes[0];
     }
@@ -170,32 +190,51 @@ namespace
         }
     }
 
+    NodeHeader read_header_from_binary_file(std::ifstream &file)
+    {
+        NodeHeader header;
+        file.read(reinterpret_cast<char *>(&header), sizeof(header));
+
+        if (file.eof())
+        {
+            throw std::runtime_error("Unexpected end of file");
+        }
+
+        if (header.data_length > MAX_DATA_LENGTH)
+        {
+            throw std::runtime_error("Data length exceeds maximum allowed");
+        }
+
+        return header;
+    }
+
+    std::string read_data_from_binary_file(std::ifstream &file, std::uint32_t data_length)
+    {
+        std::string data;
+        data.resize(data_length);
+        file.read(&data[0], data_length);
+
+        return data;
+    }
+
+    void read_nodes_from_binary_file(std::ifstream &file, nodes_data_t &nodes_data, uint32_t node_count)
+    {
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            NodeHeader header = read_header_from_binary_file(file);
+
+            std::string data = read_data_from_binary_file(file, header.data_length);
+
+            nodes_data.emplace_back(std::move(data), header.rand_index);
+        }
+    }
+
     nodes_data_t read_from_binary_file(std::ifstream &file, uint32_t node_count)
     {
         nodes_data_t nodes_data;
         nodes_data.reserve(node_count);
 
-        for (uint32_t i = 0; i < node_count; ++i)
-        {
-            NodeHeader header;
-            file.read(reinterpret_cast<char *>(&header), sizeof(header));
-
-            if (file.eof())
-            {
-                throw std::runtime_error("Unexpected end of file");
-            }
-
-            if (header.data_length > MAX_DATA_LENGTH)
-            {
-                throw std::runtime_error("Data length exceeds maximum allowed");
-            }
-
-            std::string data;
-            data.resize(header.data_length);
-            file.read(&data[0], header.data_length);
-
-            nodes_data.emplace_back(std::move(data), header.rand_index);
-        }
+        read_nodes_from_binary_file(file, nodes_data, node_count);
 
         return nodes_data;
     }
@@ -204,7 +243,7 @@ namespace
 
 ListNode *ListSerializer::deserializeFromText(const std::string &filename)
 {
-    auto nodes_data = read_data_from_file(filename);
+    auto nodes_data = read_data_from_text_file(filename);
 
     if (nodes_data.empty())
     {
