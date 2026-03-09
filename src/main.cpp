@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
         auto *restored = ListSerializer::deserializeFromBinary("outlet.out");
 
-        std::cout << "Serializaton and deserialization successful\n";
+        std::cout << "Serialization and deserialization completed successfully\n";
         free_list(restored);
     }
     catch (const std::exception &e)
