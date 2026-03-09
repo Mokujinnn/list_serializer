@@ -9,5 +9,8 @@ struct ListNode
     ListNode *rand = nullptr;
     std::string data;
 
-    ListNode(const std::string &data) : data(data) {}
+    ListNode(const std::string &data)
+        : data(data)
+    {
+    }
 };
